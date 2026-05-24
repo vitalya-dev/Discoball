@@ -74,17 +74,38 @@ class DiscoBallWindow(mglw.WindowConfig):
         # Генерируем массив данных сферы
         sphere_data = generate_sphere_data(radius=2.0, sectors=32, stacks=16)
         
-        # VBO (Vertex Buffer Object) - загружаем данные в память GPU
         self.vbo = self.ctx.buffer(sphere_data.tobytes())
         
-        # VAO (Vertex Array Object) - объясняем шейдеру, как читать данные
-        # Формат '3f 3f': первые 3 числа - in_position, следующие 3 - in_normal
         self.vao = self.ctx.vertex_array(
             self.program,
             [
                 (self.vbo, '3f 3f', 'in_position', 'in_normal')
             ]
         )
+        
+        # --- НОВОЕ: Анализ аудио с помощью librosa ---
+        import librosa
+        import os
+        
+        # Путь к твоему аудиофайлу
+        audio_path = os.path.join(self.resource_dir, 'perfect_loop_2.wav')
+        
+        # Проверяем, существует ли файл, чтобы программа не упала с ошибкой
+        if os.path.exists(audio_path):
+            print("Анализируем бит трека... Это может занять пару секунд.")
+            
+            # Загружаем аудио (y - звуковые данные, sr - частота дискретизации)
+            y, sr = librosa.load(audio_path)
+            
+            # Находим кадры с ударами бита
+            tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            
+            # Переводим кадры в секунды и сохраняем массив таймкодов
+            self.beats = librosa.frames_to_time(beat_frames, sr=sr)
+            print(f"Готово! Найдено {len(self.beats)} ударов бита.")
+        else:
+            print(f"Файл {audio_path} не найден! Пульсации не будет.")
+            self.beats = []
         
     def on_render(self, time, frame_time):
         import moderngl
