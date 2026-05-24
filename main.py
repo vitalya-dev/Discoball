@@ -7,46 +7,49 @@ def generate_sphere_data(radius=1.0, sectors=32, stacks=16):
     
     vertices = []
     for i in range(stacks):
+        # Широта от -pi/2 (южный полюс) до pi/2 (северный полюс)
         lat1 = math.pi * (-0.5 + float(i) / stacks)
-        z1 = radius * math.sin(lat1)
-        zr1 = radius * math.cos(lat1)
+        y1 = radius * math.sin(lat1)
+        yr1 = radius * math.cos(lat1)
         
         lat2 = math.pi * (-0.5 + float(i + 1) / stacks)
-        z2 = radius * math.sin(lat2)
-        zr2 = radius * math.cos(lat2)
+        y2 = radius * math.sin(lat2)
+        yr2 = radius * math.cos(lat2)
         
         for j in range(sectors):
+            # Долгота от 0 до 2pi
             lng1 = 2 * math.pi * float(j) / sectors
             x1 = math.cos(lng1)
-            y1 = math.sin(lng1)
+            z1 = math.sin(lng1)
             
             lng2 = 2 * math.pi * float(j + 1) / sectors
             x2 = math.cos(lng2)
-            y2 = math.sin(lng2)
+            z2 = math.sin(lng2)
             
-            # Точки для квадрата (разбиваем на два треугольника)
-            v1 = [x1 * zr1, y1 * zr1, z1]
-            v2 = [x2 * zr1, y2 * zr1, z1]
-            v3 = [x1 * zr2, y1 * zr2, z2]
-            v4 = [x2 * zr2, y2 * zr2, z2]
+            # Точки для квадрата. Теперь Y - это вертикаль!
+            v1 = [x1 * yr1, y1, z1 * yr1]
+            v2 = [x2 * yr1, y1, z2 * yr1]
+            v3 = [x1 * yr2, y2, z1 * yr2]
+            v4 = [x2 * yr2, y2, z2 * yr2]
             
-            # Нормали для освещения (координаты нормализуются делением на радиус)
-            n1 = [x / radius for x in v1]
-            n2 = [x / radius for x in v2]
-            n3 = [x / radius for x in v3]
-            n4 = [x / radius for x in v4]
+            # Вычисляем центр квадрата
+            cx = (v1[0] + v2[0] + v3[0] + v4[0]) / 4.0
+            cy = (v1[1] + v2[1] + v3[1] + v4[1]) / 4.0
+            cz = (v1[2] + v2[2] + v3[2] + v4[2]) / 4.0
             
-            # Первый треугольник
-            vertices.extend(v1 + n1)
-            vertices.extend(v2 + n2)
-            vertices.extend(v3 + n3)
+            # Вектор нормали от центра шара к центру нашего зеркальца
+            length = math.sqrt(cx*cx + cy*cy + cz*cz)
+            flat_normal = [cx / length, cy / length, cz / length]
             
-            # Второй треугольник
-            vertices.extend(v3 + n3)
-            vertices.extend(v2 + n2)
-            vertices.extend(v4 + n4)
+            # Назначаем ОДНУ И ТУ ЖЕ нормаль всем вершинам
+            vertices.extend(v1 + flat_normal)
+            vertices.extend(v2 + flat_normal)
+            vertices.extend(v3 + flat_normal)
             
-    # Возвращаем плоский массив чисел формата float32
+            vertices.extend(v3 + flat_normal)
+            vertices.extend(v2 + flat_normal)
+            vertices.extend(v4 + flat_normal)
+            
     return np.array(vertices, dtype='f4')
 
 class DiscoBallWindow(mglw.WindowConfig):
