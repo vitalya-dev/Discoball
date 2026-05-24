@@ -33,7 +33,7 @@ void main() {
     
     // --- Освещение ---
     vec3 R = reflect(-L, N);
-    float diff = max(dot(N, L), 0.0);
+    float diff = max(dot(N, L), 0.3);
     float spec = pow(max(dot(V, R), 0.0), 128.0);
     
     vec3 mirror_color = vec3(0.8, 0.85, 0.9);

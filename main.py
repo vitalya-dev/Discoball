@@ -87,7 +87,7 @@ class DiscoBallWindow(mglw.WindowConfig):
         import moderngl
         from pyrr import Matrix44
         
-        # Очистка экрана и включение теста глубины (чтобы задние стенки не рисовались поверх передних)
+        # Очистка экрана и включение теста глубины
         self.ctx.clear(0.05, 0.05, 0.15)
         self.ctx.enable(moderngl.DEPTH_TEST)
         
@@ -101,8 +101,9 @@ class DiscoBallWindow(mglw.WindowConfig):
             (0.0, 1.0, 0.0)
         )
         
-        # Матрица модели (положение самого объекта). Пока без вращения.
-        model = Matrix44.identity()
+        # Матрица модели: создаем вращение вокруг оси Y на основе текущего времени
+        # Умножаем time на 0.5, чтобы шар крутился с приятной скоростью
+        model = Matrix44.from_y_rotation(time * 0.5)
         
         # Передаем матрицы в переменные uniform вершинного шейдера
         self.program['m_proj'].write(proj.astype('f4').tobytes())
