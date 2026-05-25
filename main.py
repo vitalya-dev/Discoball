@@ -83,18 +83,18 @@ class DiscoBallWindow(mglw.WindowConfig):
             ]
         )
         
-        # --- НОВОЕ: Анализ аудио с помощью librosa ---
+        # --- Анализ аудио с помощью librosa ---
         import librosa
         import os
+        import subprocess
         
         # Путь к твоему аудиофайлу
         audio_path = os.path.join(self.resource_dir, 'perfect_loop_2.wav')
         
-        # Проверяем, существует ли файл, чтобы программа не упала с ошибкой
         if os.path.exists(audio_path):
             print("Анализируем бит трека... Это может занять пару секунд.")
             
-            # Загружаем аудио (y - звуковые данные, sr - частота дискретизации)
+            # Загружаем аудио
             y, sr = librosa.load(audio_path)
             
             # Находим кадры с ударами бита
@@ -103,9 +103,15 @@ class DiscoBallWindow(mglw.WindowConfig):
             # Переводим кадры в секунды и сохраняем массив таймкодов
             self.beats = librosa.frames_to_time(beat_frames, sr=sr)
             print(f"Готово! Найдено {len(self.beats)} ударов бита.")
+            
+            # --- НОВОЕ: Воспроизведение звука ---
+            print("Запускаем музыку через paplay...")
+            # Popen запускает процесс в фоне, не блокируя работу нашей программы
+            self.audio_process = subprocess.Popen(['paplay', audio_path])
         else:
             print(f"Файл {audio_path} не найден! Пульсации не будет.")
             self.beats = []
+            self.audio_process = None
         
     def on_render(self, time, frame_time):
         import moderngl
