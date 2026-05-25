@@ -66,6 +66,7 @@ class DiscoBallWindow(mglw.WindowConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
+        # 1. Загрузка шейдеров для 3D-шара
         self.program = self.load_program(
             vertex_shader='shader.vert',
             fragment_shader='shader.frag'
@@ -73,40 +74,56 @@ class DiscoBallWindow(mglw.WindowConfig):
         
         # Генерируем массив данных сферы
         sphere_data = generate_sphere_data(radius=2.0, sectors=32, stacks=16)
-        
         self.vbo = self.ctx.buffer(sphere_data.tobytes())
-        
         self.vao = self.ctx.vertex_array(
             self.program,
-            [
-                (self.vbo, '3f 3f', 'in_position', 'in_normal')
-            ]
+            [(self.vbo, '3f 3f', 'in_position', 'in_normal')]
         )
         
-        # --- Анализ аудио с помощью librosa ---
+        # --- НОВОЕ: Настройка Framebuffer (Пикселизация) ---
+        import moderngl
+        from moderngl_window import geometry
+        
+        # Разрешение нашего виртуального экрана (измени на 100x100 для гигантских пикселей!)
+        self.pixel_res = (200, 200) 
+        
+        # Создаем текстуру, в которую будем рисовать
+        self.render_texture = self.ctx.texture(self.pixel_res, 4)
+        # ВАЖНО: отключаем сглаживание, чтобы пиксели были квадратными и четкими
+        self.render_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        
+        # Создаем буфер глубины для правильной отрисовки 3D
+        self.depth_buffer = self.ctx.depth_renderbuffer(self.pixel_res)
+        
+        # Собираем Framebuffer (наш виртуальный холст)
+        self.fbo = self.ctx.framebuffer(
+            color_attachments=[self.render_texture],
+            depth_attachment=self.depth_buffer
+        )
+        
+        # Загружаем шейдеры для вывода картинки на весь экран
+        self.screen_program = self.load_program(
+            vertex_shader='screen.vert',
+            fragment_shader='screen.frag'
+        )
+        # Создаем готовый плоский квадрат на весь экран
+        self.screen_quad = geometry.quad_fs()
+        
+        # --- Анализ аудио ---
         import librosa
         import os
         import subprocess
         
-        # Путь к твоему аудиофайлу
         audio_path = os.path.join(self.resource_dir, 'perfect_loop_2.wav')
         
         if os.path.exists(audio_path):
             print("Анализируем бит трека... Это может занять пару секунд.")
-            
-            # Загружаем аудио
             y, sr = librosa.load(audio_path)
-            
-            # Находим кадры с ударами бита
             tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-            
-            # Переводим кадры в секунды и сохраняем массив таймкодов
             self.beats = librosa.frames_to_time(beat_frames, sr=sr)
             print(f"Готово! Найдено {len(self.beats)} ударов бита.")
             
-            # --- НОВОЕ: Воспроизведение звука ---
             print("Запускаем музыку через paplay...")
-            # Popen запускает процесс в фоне, не блокируя работу нашей программы
             self.audio_process = subprocess.Popen(['paplay', audio_path])
         else:
             print(f"Файл {audio_path} не найден! Пульсации не будет.")
@@ -116,6 +133,12 @@ class DiscoBallWindow(mglw.WindowConfig):
     def on_render(self, time, frame_time):
         import moderngl
         from pyrr import Matrix44
+        
+        # --- 1. ПЕРВЫЙ ПРОХОД: Рисуем 3D-шар в виртуальный холст ---
+        # Переключаемся на наш маленький холст 200x200
+        self.fbo.use()
+        self.ctx.clear(0.08, 0.10, 0.19) # Цвет фона из твоей палитры
+        self.ctx.enable(moderngl.DEPTH_TEST)
         
         # Расчет пульсации бита
         beat_intensity = 0.0
@@ -131,10 +154,6 @@ class DiscoBallWindow(mglw.WindowConfig):
         except KeyError:
             pass
             
-        # Обновленный темно-синий цвет фона из палитры
-        self.ctx.clear(0.08, 0.10, 0.19)
-        self.ctx.enable(moderngl.DEPTH_TEST)
-        
         proj = Matrix44.perspective_projection(45.0, self.aspect_ratio, 0.1, 100.0)
         camera = Matrix44.look_at(
             (0.0, 0.0, 6.0),
@@ -147,7 +166,26 @@ class DiscoBallWindow(mglw.WindowConfig):
         self.program['m_camera'].write(camera.astype('f4').tobytes())
         self.program['m_model'].write(model.astype('f4').tobytes())
         
+        # Отрисовка шара в память
         self.vao.render()
+        
+        # --- 2. ВТОРОЙ ПРОХОД: Растягиваем пиксельную картинку на монитор ---
+        # Возвращаемся к основному экрану окна
+        self.ctx.screen.use()
+        self.ctx.clear(0.0, 0.0, 0.0)
+        
+        # Отключаем тест глубины, так как мы рисуем просто плоскую 2D картинку
+        self.ctx.disable(moderngl.DEPTH_TEST)
+        
+        # Подключаем текстуру из FBO к нашему квадрату на экране
+        self.render_texture.use(location=0)
+        try:
+            self.screen_program['texture0'].value = 0
+        except KeyError:
+            pass
+            
+        # Отрисовка растянутой картинки
+        self.screen_quad.render(self.screen_program)
 
 if __name__ == '__main__':
     mglw.run_window_config(DiscoBallWindow)

@@ -28,7 +28,7 @@ void main() {
     vec2 tiles = vec2(32.0, 16.0); 
     vec2 tile_uv = fract(uv * tiles);
     
-    float border = 0.05; 
+    float border = 0.0001; 
     float is_border = step(1.0 - border, tile_uv.x) + step(1.0 - border, tile_uv.y);
     is_border = clamp(is_border, 0.0, 1.0);
     
