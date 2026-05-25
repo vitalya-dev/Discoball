@@ -49,15 +49,15 @@ void main() {
     
     // Рассчитываем свет от 1-го софита
     total_diff += c1 * max(dot(N, L1), 0.0);
-    total_spec += c1 * pow(max(dot(V, reflect(-L1, N)), 0.0), 128.0);
+    total_spec += c1 * pow(max(dot(V, reflect(-L1, N)), 0.0), 2.0);
     
     // Рассчитываем свет от 2-го софита
     total_diff += c2 * max(dot(N, L2), 0.0);
-    total_spec += c2 * pow(max(dot(V, reflect(-L2, N)), 0.0), 128.0);
+    total_spec += c2 * pow(max(dot(V, reflect(-L2, N)), 0.0), 2.0);
     
     // Рассчитываем свет от 3-го софита
     total_diff += c3 * max(dot(N, L3), 0.0);
-    total_spec += c3 * pow(max(dot(V, reflect(-L3, N)), 0.0), 128.0);
+    total_spec += c3 * pow(max(dot(V, reflect(-L3, N)), 0.0), 2.0);
     
     // --- Пульсация под музыку ---
     // Базовая яркость 0.3. При ударе бита (u_beat = 1.0) яркость подскакивает!

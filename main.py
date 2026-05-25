@@ -117,30 +117,47 @@ class DiscoBallWindow(mglw.WindowConfig):
         import moderngl
         from pyrr import Matrix44
         
+        # --- НОВОЕ: Расчет пульсации бита ---
+        beat_intensity = 0.0
+        # Проверяем, удалось ли загрузить биты
+        if hasattr(self, 'beats') and len(self.beats) > 0:
+            # Ищем все биты, которые уже успели прозвучать до текущего момента времени
+            past_beats = [b for b in self.beats if b <= time]
+            if past_beats:
+                # Берем самый последний удар
+                last_beat = past_beats[-1]
+                time_since_last_beat = time - last_beat
+                
+                # Рассчитываем затухание.
+                # Цифра 4.0 определяет скорость угасания. 
+                # 1.0 - (time * 4.0) означает, что вспышка полностью погаснет за 0.25 секунды.
+                beat_intensity = max(0.0, 1.0 - time_since_last_beat * 4.0)
+        
+        # Передаем значение в фрагментный шейдер
+        try:
+            self.program['u_beat'].value = beat_intensity
+        except KeyError:
+            # Защита от ошибок, если переменная вдруг не используется в шейдере
+            pass
+            
         # Очистка экрана и включение теста глубины
         self.ctx.clear(0.05, 0.05, 0.15)
         self.ctx.enable(moderngl.DEPTH_TEST)
         
-        # Матрица проекции (угол обзора, пропорции окна, дальность отрисовки)
+        # Матрицы
         proj = Matrix44.perspective_projection(45.0, self.aspect_ratio, 0.1, 100.0)
-        
-        # Матрица камеры (сдвигаем камеру назад по оси Z, смотрим в центр)
         camera = Matrix44.look_at(
             (0.0, 0.0, 6.0),
             (0.0, 0.0, 0.0),
             (0.0, 1.0, 0.0)
         )
-        
-        # Матрица модели: создаем вращение вокруг оси Y на основе текущего времени
-        # Умножаем time на 0.5, чтобы шар крутился с приятной скоростью
         model = Matrix44.from_y_rotation(time * 0.5)
         
-        # Передаем матрицы в переменные uniform вершинного шейдера
         self.program['m_proj'].write(proj.astype('f4').tobytes())
         self.program['m_camera'].write(camera.astype('f4').tobytes())
         self.program['m_model'].write(model.astype('f4').tobytes())
         
-        # Отрисовка сферы
+        # Отрисовка
         self.vao.render()
 
 if __name__ == '__main__':
