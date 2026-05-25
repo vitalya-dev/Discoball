@@ -59,11 +59,18 @@ void main() {
     total_diff += c3 * max(dot(N, L3), 0.0);
     total_spec += c3 * pow(max(dot(V, reflect(-L3, N)), 0.0), 2.0);
     
-    // Немного затемним базу зеркала, чтобы яркие цвета лучше выделялись
+    // Немного затемним базу зеркала
     vec3 mirror_color = vec3(0.7, 0.75, 0.8);
     
     vec3 final_color = mix(mirror_color * total_diff, vec3(0.02), is_border);
     final_color += total_spec;
+    
+    // --- НОВОЕ: Постеризация (Ограничение палитры) ---
+    // Количество оттенков (чем меньше цифра, тем жестче эффект)
+    float color_levels = 64.0;
+    
+    // Округляем цвет до жестких "ступенек"
+    final_color = floor(final_color * color_levels) / color_levels;
     
     f_color = vec4(final_color, 1.0);
 }
