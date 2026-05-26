@@ -135,9 +135,11 @@ class DiscoBallWindow(mglw.WindowConfig):
         from pyrr import Matrix44
         
         # --- 1. ПЕРВЫЙ ПРОХОД: Рисуем 3D-шар в виртуальный холст ---
-        # Переключаемся на наш маленький холст 200x200
         self.fbo.use()
-        self.ctx.clear(0.08, 0.10, 0.19) # Цвет фона из твоей палитры
+        
+        # ИСПРАВЛЕНИЕ: Очищаем фон полностью прозрачным цветом (последний ноль - это альфа-канал)
+        # Это позволит экранному шейдеру понять, где находится шар, а где пустота
+        self.ctx.clear(0.0, 0.0, 0.0, 0.0)
         self.ctx.enable(moderngl.DEPTH_TEST)
         
         # Расчет пульсации бита
@@ -149,6 +151,7 @@ class DiscoBallWindow(mglw.WindowConfig):
                 time_since_last_beat = time - last_beat
                 beat_intensity = max(0.0, 1.0 - time_since_last_beat * 4.0)
         
+        # Передаем бит в шейдер шара (для софитов)
         try:
             self.program['u_beat'].value = beat_intensity
         except KeyError:
@@ -166,25 +169,23 @@ class DiscoBallWindow(mglw.WindowConfig):
         self.program['m_camera'].write(camera.astype('f4').tobytes())
         self.program['m_model'].write(model.astype('f4').tobytes())
         
-        # Отрисовка шара в память
         self.vao.render()
         
         # --- 2. ВТОРОЙ ПРОХОД: Растягиваем пиксельную картинку на монитор ---
-        # Возвращаемся к основному экрану окна
         self.ctx.screen.use()
         self.ctx.clear(0.0, 0.0, 0.0)
-        
-        # Отключаем тест глубины, так как мы рисуем просто плоскую 2D картинку
         self.ctx.disable(moderngl.DEPTH_TEST)
         
-        # Подключаем текстуру из FBO к нашему квадрату на экране
         self.render_texture.use(location=0)
+        
+        # НОВОЕ: Передаем текстуру, текущее время и силу бита в экранный шейдер для анимации фона
         try:
             self.screen_program['texture0'].value = 0
+            self.screen_program['u_time'].value = time
+            self.screen_program['u_beat'].value = beat_intensity
         except KeyError:
             pass
             
-        # Отрисовка растянутой картинки
         self.screen_quad.render(self.screen_program)
 
 if __name__ == '__main__':

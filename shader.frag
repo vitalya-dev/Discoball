@@ -31,6 +31,7 @@ void main() {
     float border = 0.0001; 
     float is_border = step(1.0 - border, tile_uv.x) + step(1.0 - border, tile_uv.y);
     is_border = clamp(is_border, 0.0, 1.0);
+    is_border = 0; // no border for pixel art
     
     // --- Многоцветное клубное освещение ---
     vec3 L1 = normalize(vec3(5.0, 5.0, 5.0) - v_position);
