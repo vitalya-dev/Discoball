@@ -18,13 +18,12 @@ void main() {
         f_color = tex_color;
     } else {
         // --- Генерация пляшущих ретро-теней ---
-        
         // Создаем математические волны на основе координат экрана и времени
         float wave = sin(v_texcoord.x * 20.0 + u_time * 3.0) + 
                      sin(v_texcoord.y * 15.0 - u_time * 2.0);
                      
         // В момент бита добавляем сильные искажения и "тряску" теней
-        wave += sin(v_texcoord.y * 40.0 + u_time * 10.0) * u_beat * 1.5;
+        wave += sin(v_texcoord.y * 40.0 + u_time * 10.0) * u_beat * 1.0;
         
         // Делаем узор жестким (ступенчатым), чтобы сохранить стиль пиксель-арта
         float pattern = step(0.5, fract(wave * 0.5));
