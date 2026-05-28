@@ -4,31 +4,41 @@ in vec2 v_texcoord;
 out vec4 f_color;
 
 uniform sampler2D texture0;
-uniform float u_time; 
+// НОВОЕ: Заменили u_time на прогресс цикла от 0.0 до 1.0
+uniform float u_loop_progress; 
 uniform float u_beat;
+
+const float PI = 3.14159265359;
 
 void main() {
     vec2 tex_size = vec2(textureSize(texture0, 0));
     vec2 pixel_uv = (floor(v_texcoord * tex_size) + 0.5) / tex_size;
     
     vec4 tex_color = texture(texture0, pixel_uv);
-    
+
     if (tex_color.a > 0.1) {
         f_color = tex_color;
     } else {
         // --- ДИНАМИЧНЫЙ ГЛИТЧ ФОНА ПОД БИТ ---
         vec2 bg_uv = pixel_uv;
         
-        // ВОТ В ЧЕМ СЕКРЕТ: добавляем u_time внутрь синуса, чтобы волны двигались.
-        // Но умножаем на u_beat * 0.3, чтобы экран рвало ТОЛЬКО на дропе!
-        bg_uv.x += sin(bg_uv.y * 100.0 + u_time * 30.0) * (u_beat * 0.3);
-        bg_uv.y += cos(bg_uv.x * 100.0 - u_time * 30.0) * (u_beat * 0.3);
+        // Превращаем прогресс трека в угол от 0 до 2*PI
+        float angle = u_loop_progress * 2.0 * PI;
         
-        // Базовый узор
-        float wave = sin(bg_uv.x * 20.0) + sin(bg_uv.y * 15.0);
+        // СЕКРЕТ ИДЕАЛЬНОГО ЛУПА:
+        // Движемся по кругу вместо прямой линии.
+        float loop_time_x = sin(angle) * 5.0; 
+        float loop_time_y = cos(angle) * 5.0;
+        
+        // Рвем экран только на дропе, используя наши "круговые" таймеры
+        bg_uv.x += sin(bg_uv.y * 100.0 + loop_time_x) * (u_beat * 0.3);
+        bg_uv.y += cos(bg_uv.x * 100.0 + loop_time_y) * (u_beat * 0.3);
+        
+        // Базовый узор (тоже зацикленный)
+        float wave = sin(bg_uv.x * 20.0 + loop_time_y) + sin(bg_uv.y * 15.0 + loop_time_x);
         
         // Заставляем узор резко "моргать" при ударе
-        wave += u_beat * 10.0; 
+        wave += u_beat * 10.0;
         
         float pattern = step(0.5, fract(wave * 0.5));
         
@@ -48,7 +58,6 @@ void main() {
                 
                 if (sample_color.a > 0.1) {
                     float dist = length(vec2(float(x), float(y)));
-                    
                     if (dist < float(radius)) {
                         float weight = smoothstep(float(radius), 0.0, dist);
                         glow += sample_color.rgb * weight;
