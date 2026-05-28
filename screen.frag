@@ -4,28 +4,32 @@ in vec2 v_texcoord;
 out vec4 f_color;
 
 uniform sampler2D texture0;
-uniform float u_time;
+uniform float u_time; 
 uniform float u_beat;
 
 void main() {
-    // Узнаем виртуальный размер нашей текстуры (нашего FBO)
     vec2 tex_size = vec2(textureSize(texture0, 0));
-    
-    // МАГИЯ ПИКСЕЛЬ-АРТА: жестко округляем координаты экрана до нашей сетки.
-    // Теперь всё, что ниже, будет вычисляться огромными квадратными блоками!
     vec2 pixel_uv = (floor(v_texcoord * tex_size) + 0.5) / tex_size;
     
-    // Используем pixel_uv вместо v_texcoord везде!
     vec4 tex_color = texture(texture0, pixel_uv);
     
     if (tex_color.a > 0.1) {
         f_color = tex_color;
     } else {
-        // --- Генерация пляшущих ретро-теней (теперь они тоже пиксельные!) ---
-        float wave = sin(pixel_uv.x * 20.0 + u_time * 3.0) + 
-                     sin(pixel_uv.y * 15.0 - u_time * 2.0);
-                     
-        wave += sin(pixel_uv.y * 40.0 + u_time * 10.0) * u_beat * 1.5;
+        // --- ДИНАМИЧНЫЙ ГЛИТЧ ФОНА ПОД БИТ ---
+        vec2 bg_uv = pixel_uv;
+        
+        // ВОТ В ЧЕМ СЕКРЕТ: добавляем u_time внутрь синуса, чтобы волны двигались.
+        // Но умножаем на u_beat * 0.3, чтобы экран рвало ТОЛЬКО на дропе!
+        bg_uv.x += sin(bg_uv.y * 100.0 + u_time * 30.0) * (u_beat * 0.3);
+        bg_uv.y += cos(bg_uv.x * 100.0 - u_time * 30.0) * (u_beat * 0.3);
+        
+        // Базовый узор
+        float wave = sin(bg_uv.x * 20.0) + sin(bg_uv.y * 15.0);
+        
+        // Заставляем узор резко "моргать" при ударе
+        wave += u_beat * 10.0; 
+        
         float pattern = step(0.5, fract(wave * 0.5));
         
         vec3 base_bg = vec3(0.08, 0.10, 0.19);
