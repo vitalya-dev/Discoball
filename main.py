@@ -56,7 +56,7 @@ class DiscoBallWindow(mglw.WindowConfig):
     # Настройки окна
     gl_version = (3, 3)
     title = "Вращающийся Диско-шар"
-    window_size = (800, 800)
+    window_size = (400, 400)
     aspect_ratio = 1.0
     
     # Указываем текущую директорию как папку с ресурсами
@@ -160,26 +160,28 @@ class DiscoBallWindow(mglw.WindowConfig):
         
     def on_render(self, time, frame_time):
         import moderngl
+        import math
         from pyrr import Matrix44
+        
+        # --- Искусственное время для покадрового рендера ---
+        # Вычисляем прогресс от 0.0 до 1.0
+        loop_progress = self.current_time / self.track_duration
         
         # --- 1. ПЕРВЫЙ ПРОХОД: Рисуем 3D-шар в виртуальный холст ---
         self.fbo.use()
         
-        # ИСПРАВЛЕНИЕ: Очищаем фон полностью прозрачным цветом (последний ноль - это альфа-канал)
-        # Это позволит экранному шейдеру понять, где находится шар, а где пустота
         self.ctx.clear(0.0, 0.0, 0.0, 0.0)
         self.ctx.enable(moderngl.DEPTH_TEST)
         
-        # Расчет пульсации бита
+        # Расчет пульсации бита с использованием нашего ИСКУССТВЕННОГО времени
         beat_intensity = 0.0
         if hasattr(self, 'beats') and len(self.beats) > 0:
-            past_beats = [b for b in self.beats if b <= time]
+            past_beats = [b for b in self.beats if b <= self.current_time]
             if past_beats:
                 last_beat = past_beats[-1]
-                time_since_last_beat = time - last_beat
+                time_since_last_beat = self.current_time - last_beat
                 beat_intensity = max(0.0, 1.0 - time_since_last_beat * 4.0)
         
-        # Передаем бит в шейдер шара (для софитов)
         try:
             self.program['u_beat'].value = beat_intensity
         except KeyError:
@@ -191,7 +193,11 @@ class DiscoBallWindow(mglw.WindowConfig):
             (0.0, 0.0, 0.0),
             (0.0, 1.0, 0.0)
         )
-        model = Matrix44.from_y_rotation(time * 0.5)
+        
+        # ИДЕАЛЬНЫЙ ЦИКЛ 3D-ШАРА:
+        # Умножаем прогресс на 2*PI, чтобы к концу трека шар сделал ровно один полных оборот.
+        rotation_angle = loop_progress * 2.0 * math.pi
+        model = Matrix44.from_y_rotation(rotation_angle)
         
         self.program['m_proj'].write(proj.astype('f4').tobytes())
         self.program['m_camera'].write(camera.astype('f4').tobytes())
@@ -206,15 +212,40 @@ class DiscoBallWindow(mglw.WindowConfig):
         
         self.render_texture.use(location=0)
         
-        # НОВОЕ: Передаем текстуру, текущее время и силу бита в экранный шейдер для анимации фона
         try:
             self.screen_program['texture0'].value = 0
-            self.screen_program['u_time'].value = time
+            # Передаем ПРОГРЕСС вместо обычного времени
+            self.screen_program['u_loop_progress'].value = loop_progress
             self.screen_program['u_beat'].value = beat_intensity
         except KeyError:
             pass
             
         self.screen_quad.render(self.screen_program)
+        
+        # --- 3. ЗАХВАТ КАДРА И ОТПРАВКА В FFMPEG ---
+        # Читаем пиксели с экрана (3 канала: RGB)
+        pixels = self.ctx.screen.read(components=3, alignment=1)
+        
+        # Отправляем сырые байты в трубу FFmpeg
+        if hasattr(self, 'ffmpeg_process') and self.ffmpeg_process.stdin:
+            try:
+                self.ffmpeg_process.stdin.write(pixels)
+            except BrokenPipeError:
+                pass
+                
+        # --- 4. ШАГ ВРЕМЕНИ И УСЛОВИЕ ВЫХОДА ---
+        self.current_time += 1.0 / self.fps
+        
+        # Выводим прогресс в консоль, чтобы было понятно, что процесс идет
+        print(f"\rРендер: {self.current_time:.2f} / {self.track_duration:.2f} сек. ({(loop_progress * 100):.1f}%)", end="")
+        
+        # Если дошли до конца трека - завершаем работу
+        if self.current_time >= self.track_duration:
+            print("\n[*] Рендер завершен! Сохраняем видео и закрываемся...")
+            if hasattr(self, 'ffmpeg_process') and self.ffmpeg_process.stdin:
+                self.ffmpeg_process.stdin.close()
+                self.ffmpeg_process.wait()
+            self.wnd.close()
 
 if __name__ == '__main__':
     mglw.run_window_config(DiscoBallWindow)
