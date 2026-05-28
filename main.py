@@ -80,7 +80,7 @@ class DiscoBallWindow(mglw.WindowConfig):
             [(self.vbo, '3f 3f', 'in_position', 'in_normal')]
         )
         
-        # --- НОВОЕ: Настройка Framebuffer (Пикселизация) ---
+        # --- Настройка Framebuffer (Пикселизация) ---
         import moderngl
         from moderngl_window import geometry
         
@@ -109,10 +109,14 @@ class DiscoBallWindow(mglw.WindowConfig):
         # Создаем готовый плоский квадрат на весь экран
         self.screen_quad = geometry.quad_fs()
         
-        # --- Анализ аудио ---
+        # --- Анализ аудио и подготовка к рендеру ---
         import librosa
         import os
         import subprocess
+        
+        # Настройки для видео (мы будем двигать время искусственно)
+        self.fps = 60.0
+        self.current_time = 0.0
         
         audio_path = os.path.join(self.resource_dir, 'perfect_loop_2.wav')
         
@@ -121,14 +125,38 @@ class DiscoBallWindow(mglw.WindowConfig):
             y, sr = librosa.load(audio_path)
             tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
             self.beats = librosa.frames_to_time(beat_frames, sr=sr)
-            print(f"Готово! Найдено {len(self.beats)} ударов бита.")
             
-            print("Запускаем музыку через paplay...")
-            self.audio_process = subprocess.Popen(['paplay', audio_path])
+            # НОВОЕ: Вычисляем точную длину трека для идеального цикла!
+            self.track_duration = librosa.get_duration(y=y, sr=sr)
+            print(f"Готово! Найдено {len(self.beats)} ударов бита. Длина: {self.track_duration:.2f} сек.")
+            
+            # Мы БОЛЬШЕ НЕ запускаем музыку вживую, чтобы она не мешала рендеру
+            self.audio_process = None
         else:
             print(f"Файл {audio_path} не найден! Пульсации не будет.")
             self.beats = []
             self.audio_process = None
+            self.track_duration = 10.0 # Если файла нет, цикл будет 10 секунд
+            
+        # --- Запуск FFmpeg трубы (pipe) ---
+        print("[*] Запуск FFmpeg трубы (pipe)...")
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',  # Перезаписать файл, если он уже есть
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-s', f"{self.window_size[0]}x{self.window_size[1]}",
+            '-pix_fmt', 'rgb24',
+            '-r', str(int(self.fps)),
+            '-i', '-',  # Читать данные из стандартного ввода
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'medium',
+            '-crf', '18',
+            'loop_video.mp4'  # Имя выходного видео без звука
+        ]
+        
+        self.ffmpeg_process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
         
     def on_render(self, time, frame_time):
         import moderngl
